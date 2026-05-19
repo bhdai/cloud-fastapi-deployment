@@ -100,6 +100,13 @@ RUN groupadd --gid 1000 appuser \
 # No source code, no uv binary, no dev dependencies reach this image.
 COPY --from=builder /app/.venv /app/.venv
 
+# Alembic needs its config and migration scripts at runtime to run
+# `alembic upgrade head` during deployments. The app code itself lives
+# inside .venv (non-editable install), but these files are not part of
+# the Python package so they must be copied explicitly.
+COPY --from=builder /app/alembic.ini /app/alembic.ini
+COPY --from=builder /app/alembic /app/alembic
+
 # Add venv bin to PATH.
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
