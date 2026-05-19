@@ -1,0 +1,73 @@
+# ==============================================================================
+# CI/CD Pipeline — Deploy to EC2
+# ==============================================================================
+#
+# Triggers on push to main or manual dispatch with environment selector.
+# SSHes into EC2, pulls latest code, runs Alembic migrations (with rollback
+# on failure), rebuilds the Docker image on the instance, and restarts.
+
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  # Default to production when triggered by push (not manual dispatch).
+  DEPLOY_ENV: ${{ github.event.inputs.environment || 'production' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DEPLOY_ENV
+          script: |
+            set -e
+
+            cd ~/cloud-fastapi-deployment
+            git pull origin main
+
+            # ── Write environment file ────────────────────────────────────
+            cat > .env <<EOF
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=ap-southeast-1
+            S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+            ENVIRONMENT=${DEPLOY_ENV}
+            EOF
+
+            # ── Build new image ───────────────────────────────────────────
+            docker compose build
+
+            # ── Run Alembic migrations ────────────────────────────────────
+            # Use `docker compose run` to execute against the new image.
+            # If migration fails, attempt rollback and exit with error.
+            docker compose run --rm app alembic upgrade head || {
+              echo "⚠️  Migration failed — rolling back last revision..."
+              docker compose run --rm app alembic downgrade -1
+              echo "❌ Deployment aborted due to migration failure."
+              exit 1
+            }
+
+            # ── Restart with new image ────────────────────────────────────
+            docker compose down
+            docker compose up -d
+
+            echo "✅ Deployed to ${DEPLOY_ENV} successfully."

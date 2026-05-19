@@ -1,0 +1,48 @@
+# ==============================================================================
+# Docker Compose — Product Catalog API
+# ==============================================================================
+#
+# Usage:
+#   Local dev (with local Postgres):
+#     DOCKER_TARGET=development docker compose --profile local up
+#
+#   Production on EC2 (connects to RDS, no local DB):
+#     docker compose up -d
+
+services:
+  app:
+    build:
+      context: .
+      target: ${DOCKER_TARGET:-production}
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+
+  # ── Local PostgreSQL (dev only) ───────────────────────────────────────────
+  # Only starts when --profile local is passed. Production uses RDS instead.
+  db:
+    image: postgres:15
+    profiles:
+      - local
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fastapi_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
