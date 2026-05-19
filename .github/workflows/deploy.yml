@@ -44,14 +44,14 @@ jobs:
             git pull origin main
 
             # ── Write environment file ────────────────────────────────────
-            cat > .env <<EOF
+            cat > .env <<'EOF'
             DATABASE_URL=${{ secrets.DATABASE_URL }}
             AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             AWS_REGION=ap-southeast-1
             S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-            ENVIRONMENT=${DEPLOY_ENV}
             EOF
+            echo "ENVIRONMENT=${DEPLOY_ENV}" >> .env
 
             # ── Build new image ───────────────────────────────────────────
             docker compose build
