@@ -56,14 +56,14 @@ jobs:
               --name "/fastapi/${ENV}/s3_bucket_name" \
               --query "Parameter.Value" --output text)
 
-            cat > .env <<'EOF'
-            DATABASE_URL=${DB_URL}
-            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            AWS_REGION=ap-southeast-1
-            S3_BUCKET_NAME=${BUCKET}
-            EOF
-            echo "ENVIRONMENT=${ENV}" >> .env
+            # Write .env using printf to safely handle special characters
+            # (e.g. $? in passwords) without shell interpolation of the values.
+            printf 'DATABASE_URL=%s\n'            "${DB_URL}"   > .env
+            printf 'AWS_ACCESS_KEY_ID=%s\n'       "${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+            printf 'AWS_SECRET_ACCESS_KEY=%s\n'   "${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+            printf 'AWS_REGION=ap-southeast-1\n'                >> .env
+            printf 'S3_BUCKET_NAME=%s\n'          "${BUCKET}"  >> .env
+            printf 'ENVIRONMENT=%s\n'             "${ENV}"     >> .env
 
             # ── Build new image ───────────────────────────────────────────
             docker compose build
